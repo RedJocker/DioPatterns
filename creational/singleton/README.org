@@ -204,8 +204,9 @@ If you really need to ensure that no other instance
 is created, which is not the case on example above,
 you can hide the struct definition and provide only a
 typedef to a pointer of the stuct, this will make impossible
-to allocate the struct and ensure that only the one provide through
-the function you defined is available
+for clients to allocate the struct
+and ensure that only the one provided through the function
+you defined is available
 
 This hiding can be done either by declaring the struct on the c file
 and a typedef to a poiter of this struct on a public header file,
