@@ -1,0 +1,251 @@
+* Singleton
+
+** Intent
+
+Ensure a class only has one instance, and provide
+a global point of access to it.
+
+** Motivation
+
+It's important for some classes to have exactly one instance.
+Although there can be many printers in a system,
+there should be only one printer spooler.
+There should be only one file system and one window manager.
+A digital filter will have one A/D converter.
+An accounting system will be dedicated to serving one company.
+
+** UML
+
+#+begin_src mermaid:
+
+classDiagram
+    class Singleton {
+        -static instance: Singleton
+        -Singleton()
+        +static getInstance() Singleton
+        +someBusinessLogic() void
+    }
+#+end_src
+
+** Description
+
+The key aspect of a singleton is to ensure only one instance is
+created.
+Ensuring that on object oriented languages is ussually done by
+hiding the access to constructor making it impossible for clients
+to instantiate the class.
+Usually the class instantiate itself on class level (static scope)
+and provide a static public method to retrieve access
+to this single instance.
+
+Variations of this pattern try address questions like when
+to instatiate the instance (eager, lazy), thread-safety
+and who is going to hold the instance (inner class instanceHolder).
+
+** Examples
+
+*** Java plain
+
+This is not a pattern I use quite often and was not able to find
+examples on repositories I created, but an example implementation
+could be like below
+
+#+begin_src java
+  public class SingletonLazy {
+
+	  private static SingletonLazy instance;
+
+	  private SingletonLazy() {}
+
+	  public static SingletonLazy instance() {
+		  if (instance == null) {
+			  instance = new SingletonLazy();
+		  }
+		  return instance;
+	  }
+
+	  public String someUsefulMethod(){
+		  return "Something useful";
+	  }
+  }
+#+end_src
+
+And its use
+
+#+begin_src java
+  public class Main {
+	  public static void main(String[] args) {
+		  // retrieving instance
+		  SingletonLazy singleton = SingletonLazy.instance();
+		  System.out.println(singleton.someUsefulMethod());
+		  
+		  // direct usage
+		  System.out.println(
+			  SingletonLazy.instance().someUsefulMethod()
+		  );
+	  }
+  }
+#+end_src
+
+*** Java Spring Framework
+
+Spring used by itself, without including any extra modules,
+works as a dependency injection framework,
+managing the instantiation and injection of all classes declared
+with =@Component= annotation or from objects returned from
+functions anotated with =@Bean= (used when the class declaration
+is external from the working codebase).
+By default Spring creates instances as singletons, that behaviour can
+be changed or made more explicit using the annotation =@Scope=
+
+example bellow uses =@Scope= to make more explicit the singleton
+nature of the class
+
+#+begin_src java
+  @Component
+  @Scope("singleton")
+  public class SudokuTitle extends JLabel {
+
+	  private static String TITLE_TEXT = "S U D O K U";
+	  private static Dimension PREFERED_DIMENSION =
+		  new Dimension(150, 50);
+	  private static Border BORDER_BLACK =
+		  BorderFactory.createLineBorder(Color.BLACK);
+
+	  public SudokuTitle() {
+		  this.setBorder(BORDER_BLACK);
+		  this.setPreferredSize(PREFERED_DIMENSION);
+		  this.setText(TITLE_TEXT);
+		  this.setHorizontalAlignment(JLabel.CENTER);
+		  this.setVerticalAlignment(JLabel.CENTER);
+	  }
+  }
+#+end_src
+[[https://github.com/RedJocker/SudokuSwingBoot/blob/858d99d8e9c9e068d01585d5dd1f8bd8cd83f9ad/src/main/java/org/play/sudokuSwingBoot/gui/SudokuTitle.java#L13-L30]]
+
+and here is the dependency injection of this instance
+
+#+begin_src java
+  public SudokuView(
+		  final SudokuViewModel viewModel,
+		  final BorderLayout borderLayout,
+		  final SudokuTitle sudokuTitle,
+		  final ApplicationArguments args,
+		  final SudokuGrid sudokuGrid,
+		  final SudokuControl sudokuControl,
+		  final SudokuMenuBar sudokuMenuBar
+	  ) {
+		  this.viewModel = viewModel;
+		  this.sudokuGrid = sudokuGrid;
+		  this.sudokuControl = sudokuControl;
+		  this.sudokuMenuBar = sudokuMenuBar;
+		  SwingUtilities.invokeLater((Runnable) () -> {
+				  initSudokuView(
+					  borderLayout,
+					  sudokuTitle,
+					  args
+				  );
+		  });
+	  }
+  }
+#+end_src
+[[https://github.com/RedJocker/SudokuSwingBoot/blob/858d99d8e9c9e068d01585d5dd1f8bd8cd83f9ad/src/main/java/org/play/sudokuSwingBoot/gui/SudokuView.java#L109-L130]]
+
+*** Kotlin
+
+Kotlin provides singleton as a language feature using the
+keyword =object=
+
+On example below only one instance of =InMemoryUserCredentialsDatabase=
+is ever created
+
+#+begin_src kotlin
+object InMemoryUserCredentialsDatabase: UserCredentialsDatabase {
+
+    private val database: MutableList<User> = mutableListOf()
+
+    override fun userByEmail(email: String): User? {
+        return database.firstOrNull { it.email == email }
+    }
+
+    override fun addUser(email: String, type: User.Type, password: String): User {
+        val user = User(email, type, password)
+        database.add(user)
+        return user
+    }
+}
+#+end_src
+[[https://github.com/RedJocker/HypeskillKtor-HotKitchen/blob/85ed3f0c806a09a34d6a7ca661ee9a6284a4fe11/HotKitchen/task/src/data/repository/database/InMemoryUserCredentialsDatabase.kt#L5-L18]]
+
+Retrieval of the instance is done by calling
+=InMemoryUserCredentialsDatabase= as it will be itself the instance
+of that singleton class
+
+*** C
+
+C is not an object oriented language, but we can simultate this pattern
+by creating a function that instantiate a local static instance of
+that value. This would be equivalent of a static method providing
+access to the instance.
+
+#+begin_src c
+sig_atomic_t	signal_status(sig_atomic_t value, t_operations type)
+{
+	static volatile sig_atomic_t	signal_status;
+
+	if (type == SET)
+		signal_status = value;
+	return (signal_status);
+}
+#+end_src
+[[https://github.com/willtrigo/42_minishell/blob/7341dbc1ea165c8c31959d4c9fe902c981888c6a/src/internal/signal/signal.c#L76-L83]]
+
+If you really need to ensure that no other instance
+is created, which is not the case on example above,
+you can hide the struct definition and provide only a
+typedef to a pointer of the stuct, this will make impossible
+to allocate the struct and ensure that only the one provide through
+the function you defined is available
+
+This hiding can be done either by declaring the struct on the c file
+and a typedef to a poiter of this struct on a public header file,
+or by using an internal header file separated from the public header
+file.
+
+example bellow, although not a singleton, demonstrates
+hiding the struct using different header files
+
+#+begin_src c
+#ifndef FT_ARRAYLIST_INTERNAL_H
+# define FT_ARRAYLIST_INTERNAL_H
+
+# include "ft_memlib.h"
+# include "collection/ft_arraylist.h"
+
+# define DEFAULT_ARRAYLIST_SIZE 5
+
+struct s_arraylist
+{
+	void	**arr;
+	size_t	size;
+	size_t	capacity;
+	void	(*destroy_element)(void *element);
+};
+
+#endif
+#+end_src
+[[https://github.com/RedJocker/libftx/blob/206185fd9e27b4c098b4954934a95f97f4f0e392/ft_arraylist/ft_arraylist_internal.h#L13-L29]]
+
+#+begin_src c
+#ifndef FT_ARRAYLIST_H
+# define FT_ARRAYLIST_H
+# include <stdlib.h>
+# include "ft_util.h"
+
+typedef struct s_arraylist	*t_arraylist;
+
+t_arraylist	ft_arraylist_new(void (*destroy_element)(void *element));
+void		ft_arraylist_destroy(t_arraylist alst);
+#+end_src
+
+[[https://github.com/RedJocker/libftx/blob/206185fd9e27b4c098b4954934a95f97f4f0e392/includes/collection/ft_arraylist.h#L13-L21]]
