@@ -1,0 +1,429 @@
+* Strategy
+
+** Intent
+
+Define a family of algorithms, encapsulate each one,
+and make them interchangeable.
+Strategy lets the algorithm vary independently from
+clients that use it.
+
+** Motivation
+
+There might be many ways to implement a certain operation and
+instead of hardcoding a certain implementation into a class
+that uses it might be benneficial to create a interface
+for that operation and depend on the interface through
+aggregation or composition delegating the execution of this
+operation to implementations of this interface.
+
+** UML
+
+#+begin_src mermaid
+
+classDiagram
+    class Context {
+        -strategy: Strategy
+        +executeStrategy()
+    }
+    class Strategy {
+        <<interface>>
+        +execute()*
+    }
+    class ConcreteStrategyA {
+        +execute()
+    }
+    class ConcreteStrategyB {
+        +execute()
+    }
+    Context o-- Strategy : aggregation
+    Strategy <|-- ConcreteStrategyA : implementation
+    Strategy <|-- ConcreteStrategyB : implementation
+#+end_src
+
+** Description
+
+The key aspect of strategy pattern is providing
+flexibility of behaviour of a class by delegating an operation
+to an interface that has potentially many implementations.
+
+This allows runtime composition of class to behave in
+a certain desired way or even changing at runtime
+the behaviour of a class by setting a different implementation
+of this interface depending on some kind of state change event.
+
+** Examples
+
+*** Java 
+
+In example bellow we have a command line application that needs
+to read a password from user and tries to do that hiding
+user input to preserve user privacy during use. But this feature
+depends on availability of System.console(). If console is not
+available it them fallback to an implementation that warns user
+that hiding password feature is not available before asking user
+to type password.
+
+#+begin_src java
+  interface IoAdapter {
+	  public IoAdapter printf(String format, Object ... args);
+	  public String readLine(String fmt, Object ... args);
+	  public String readLine();
+	  public String readPassword(String fmt, Object ... args);
+	  public String readPassword();
+
+	  default int readNumberUnsigned() {
+		  String inputLine;
+		  int option;
+
+		  inputLine = this.readLine();
+		  if (inputLine == null)
+			  return 0;
+		  try {
+			  option = Integer.parseInt(inputLine);
+			  if (option < 0) {
+				  option = -1;
+			  }
+		  } catch (NumberFormatException ex) {
+			  option = -1;
+		  }
+		  return option;
+	  }
+
+	  default Optional<Double> readDoublerUnsigned() {
+		  String inputLine;
+		  Optional<Double> maybeNumber;
+
+		  inputLine = this.readLine();
+		  if (inputLine == null)
+			  return Optional.empty();
+		  try {
+			  double number = Double.parseDouble(inputLine);
+			  if (number < 0) {
+				  maybeNumber = Optional.empty();
+			  } else {
+				  maybeNumber = Optional.of(number);
+			  }
+		  } catch (NumberFormatException ex) {
+			  maybeNumber = Optional.empty();
+		  }
+		  return maybeNumber;
+	  }
+  }
+
+  class ConsoleWrapper implements IoAdapter {
+
+	  Console console;
+
+	  public ConsoleWrapper(Console console) {
+		  this.console = console;
+	  }
+
+	  @Override
+	  public IoAdapter printf(String format, Object ... args) {
+		  console.printf(format, args);
+		  return this;
+	  }
+	  @Override
+	  public String readLine(String fmt, Object ... args) {
+		  return console.readLine(fmt, args);
+	  }
+	  @Override
+	  public String readLine() {
+		  return console.readLine();
+	  }
+	  @Override
+	  public String readPassword(String fmt, Object ... args) {
+		  char[] arr = console.readPassword(fmt, args);
+		  if (arr == null)
+			  return null;
+		  return String.valueOf(arr);
+	  }
+	  @Override
+	  public String readPassword() {
+		  char[] arr = console.readPassword();
+		  if (arr == null)
+			  return null;
+		  return String.valueOf(arr);
+	  }
+  }
+
+  class StreamWrapper implements IoAdapter {
+	  PrintStream out;
+	  Scanner in;
+
+	  public StreamWrapper(PrintStream out, InputStream in) {
+		  this.out = out;
+		  this.in = new Scanner(in);
+	  }
+
+	  @Override
+	  public IoAdapter printf(String format, Object ... args) {
+		  out.printf(format, args);
+		  return this;
+	  }
+	  @Override
+	  public String readLine(String fmt, Object ... args) {
+		  out.printf(fmt, args);
+		  return this.readLine();
+	  }
+	  @Override
+	  public String readLine() {
+		  return in.hasNext() ? in.next() : null;
+	  }
+	  @Override
+	  public String readPassword(String fmt, Object ... args) {
+		  out.printf("Warning: this is not a fully functional terminal\n");
+		  out.printf("Password will not be hidden while typing it\n");
+		  out.printf(fmt, args);
+		  return this.readPassword();
+	  }
+
+	  @Override
+	  public String readPassword() {
+		  return this.readLine();
+	  }
+  }
+
+#+end_src
+[[https://github.com/RedJocker/DioShellBankJava/blob/1e88aca8d22c45a9eeda53189736a0eb8705ab50/src/main/dio/challenge/Main.java#L405-L523]]
+
+It is only possible to determine at runtime
+the presence or not of console, so to be able to change
+this behaviour we need to use stategy pattern and compose
+our consumer class with either the console implementation
+with hiding feature or the fallback implementation with
+warn user of missing hiding feature
+
+The interface that acts like Strategy in this example is named
+=IoAdapter=, the classes that are acting as ConcreteStrategy
+implementations are =ConsoleWrapper= and =StreamWrapper=.
+
+We can see below the code that is going to instantiate this
+=IoAdapter= and compose through constructor injection to classes
+that depend on it, the principal one being =Presenter= class
+
+#+begin_src java
+  class Main {
+
+	  static public Presenter defaultPresenter(IoAdapter ioAdapter) {
+
+			final NewAccountIoForm newAccountForm = new NewAccountIoForm(ioAdapter);
+			final LoginIoForm loginForm = new LoginIoForm(ioAdapter);
+
+			final LoanIoForm loanForm = new LoanIoForm(ioAdapter);
+			final DepositIoForm depositForm = new DepositIoForm(ioAdapter);
+			final WithdrawIoForm withdrawForm = new WithdrawIoForm(ioAdapter);
+			final TransferIoForm transferForm = new TransferIoForm(ioAdapter);
+
+			final CheckingAccountMenu chekingAccountMenu =
+				new CheckingAccountMenu(
+					ioAdapter,
+					loanForm,
+					depositForm,
+					withdrawForm,
+					transferForm
+				);
+
+			final SavingAccountMenu savingAccountMenu =
+				new SavingAccountMenu(
+					ioAdapter,
+					depositForm,
+					withdrawForm,
+					transferForm
+				);
+
+			final AccountMenu accountMenu =
+				new AccountMenu(ioAdapter, chekingAccountMenu, savingAccountMenu);
+			final MainMenu mainMenu = new MainMenu(
+				ioAdapter,
+				newAccountForm,
+				loginForm,
+				accountMenu
+			);
+			final Presenter presenter = new Presenter(
+				ioAdapter,
+				mainMenu
+			);
+			return presenter;
+		}
+
+		public static void main(String[] args) {
+
+			final Console console = System.console();
+			final IoAdapter ioAdapter;
+			if (console != null)
+				ioAdapter = new ConsoleWrapper(console);
+			else {
+				ioAdapter = new StreamWrapper(System.out, System.in);
+			}
+
+			final Repository repository = new RepositoryInMemory(new HashMap<>());
+			final Service service = new Service(repository);
+			final Presenter presenter = defaultPresenter(ioAdapter);
+
+			presenter.mainMenu(service);
+		}
+  }
+#+end_src
+[[https://github.com/RedJocker/DioShellBankJava/blob/1e88aca8d22c45a9eeda53189736a0eb8705ab50/src/main/dio/challenge/Main.java#L1266-L1323]]
+
+
+*** C
+
+C is not an Object Oriented language, but there are ways to
+achieve similar pattern.
+One way to achieve this could be by having a struct depend
+on function pointers, in which case the interface would be
+the function signature related to that function pointer, the
+implementation would be functions that have that signature,
+the composition would happen by assigning
+a function pointer to a particular concrete function, and the consume
+would happen by invoking the function pointer that the struct holds.
+
+A different way is to use tagged unions to create something similar
+to an sealed interface or sealed abstract class, and the members
+of the union would be the concrete implementations of this
+interface.
+
+Since C does not have any kind of v-table embeded the delegation has to
+be more mannually implemented by having interface functions
+implementation that delegate functionality to concrete implementation
+after type checking.
+
+On bellow example we have the tagged union aproach.
+This is part of a simplified bash clone project and
+there is a =t_command= type acting like an interface for
+several possible commands like
+=t_command_simple=, =t_command_pipe=, etc.
+
+#+begin_src c
+
+  typedef struct s_command	*t_command;
+
+  typedef struct s_command_simple
+  {
+	  char		*cmd_path;
+	  int			cmd_argc;
+	  char		**cmd_argv;
+	  char		**cmd_envp;
+	  t_arraylist	pipes_to_close;
+  }	t_command_simple;
+
+  typedef struct s_command_pipe
+  {
+	  t_command	cmd_before;
+	  t_command	cmd_after;
+  }	t_command_pipe;
+
+  typedef struct s_command_and
+  {
+	  t_command	cmd_before;
+	  t_command	cmd_after;
+  }	t_command_and;
+
+  typedef struct s_command_or
+  {
+	  t_command	cmd_before;
+	  t_command	cmd_after;
+  }	t_command_or;
+
+  typedef struct s_command_paren
+  {
+	  t_command	cmd;
+  }	t_command_paren;
+
+  typedef struct s_command_invalid
+  {
+	  char	*msg;
+	  int		status;
+  }	t_command_invalid;
+
+  typedef enum e_command_type
+  {
+	  CMD_SIMPLE,
+	  CMD_INVALID,
+	  CMD_PIPE,
+	  CMD_AND,
+	  CMD_OR,
+	  CMD_PAREN,
+	  CMD_EOF,
+  }	t_command_type;
+
+  struct s_command
+  {
+	  char			*debug_id;
+	  t_command_type	type;
+	  t_arraylist		io_handlers;
+	  union
+	  {
+		  t_command_simple	*simple;
+		  t_command_invalid	*invalid;
+		  t_command_pipe		*pipe;
+		  t_command_and		*and;
+		  t_command_or		*or;
+		  t_command_paren		*paren;
+	  };
+  };
+
+  t_command	command_build(t_token **tokens, int tokens_len);
+  void		command_destroy(t_command cmd);
+  void		command_close_ios(t_command cmd);
+  void		command_add_pipe_io(t_command cmd, int pipe_fd, t_io_direction dir);
+  void		command_add_close_io(
+				t_command cmd, int pipe_fd, t_io_direction dir);
+#+end_src
+[[https://github.com/RedJocker/42_minishell/blob/7341dbc1ea165c8c31959d4c9fe902c981888c6a/src/internal/repl/shell/command/command.h#L20-L94]]
+
+this bellow would be how to delegate the functionality on one
+of the =t_command= functions to each concrete implementation
+by checking the type
+
+#+begin_src c
+void	command_add_pipe_io(t_command cmd, int pipe_fd, t_io_direction dir)
+{
+	if (cmd->type == CMD_SIMPLE)
+		command_simple_add_pipe_io(cmd, pipe_fd, dir);
+	else if (cmd->type == CMD_PIPE)
+		command_pipe_add_pipe_io(cmd, pipe_fd, dir);
+	else if (cmd->type == CMD_AND)
+		command_and_add_pipe_io(cmd, pipe_fd, dir);
+	else if (cmd->type == CMD_OR)
+		command_or_add_pipe_io(cmd, pipe_fd, dir);
+	else if (cmd->type == CMD_PAREN)
+		command_paren_add_pipe_io(cmd, pipe_fd, dir);
+}
+#+end_src
+[[https://github.com/RedJocker/42_minishell/blob/7341dbc1ea165c8c31959d4c9fe902c981888c6a/src/internal/repl/shell/command/command.c#L21-L33]]
+
+each concrete type can then implement their
+specific concrete implementation of that functionality.
+
+the code that is going to be the client of this implementation is
+a function that receives =t_command= as a parameter
+
+#+begin_src c
+
+#ifndef RUNNER_H
+# define RUNNER_H
+
+
+# include <signal.h>
+# include "internal/repl/shell/command/command.h"
+
+
+sig_atomic_t	runner(t_command cmd, sig_atomic_t last_cmd_status);
+
+#+end_src
+[[https://github.com/RedJocker/42_minishell/blob/7341dbc1ea165c8c31959d4c9fe902c981888c6a/src/internal/repl/shell/runner/runner.h#L13-L21]]
+
+and this runner function will be able to run different kinds of
+commands by receiving this =t_command= interface like type.
+
+On this specific codebase there are more type checkings happening
+inside runner implementation because the team coding prefered
+=t_command= layer not being responsible for running commands, only
+for holding the data needed to run the command, like which fd should
+the output happen to, or what are the args of the command,
+but there are parallel =runner_cmd_*= functions that could be seen
+as extension methods of =t_command=, that also change the behaviour
+of =runner= depending on each concrete type of =t_command=
