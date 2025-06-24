@@ -1,0 +1,274 @@
+* Facade
+
+** Intent
+
+Provide a unified interface to a set of interfaces in a subsystem.
+Facade defines a higher-level interface
+that makes the subsystem easier to use.
+
+** Motivation
+
+Structuring a system into subsystems helps reduce complexity.
+A common design goal is to minimize the communication
+and dependencies between subsystems.
+One way to achieve this goal is to introduce a facade object
+that provides a single, simplified interface to the more general
+facilities of a subsystem.
+
+** UML
+
+#+begin_src mermaid
+
+classDiagram
+    class Client1
+    class Client2
+    class Facade {
+        -subsystem1: Subsystem1
+        -subsystem2: Subsystem2
+        +Facade()
+        +operation1(): void
+        +operation2(): void
+    }
+    class Subsystem1 {
+        +operation1(): void
+    }
+    class Subsystem2 {
+        +operation2(): void
+    }
+    Client1 --> Facade : uses
+    Client2 --> Facade : uses
+    Facade *-- Subsystem1 : has a
+    Facade *-- Subsystem2 : has a
+#+end_src
+
+** Description
+
+The key aspect of a facade is to simplify interaction between
+different subsystems.
+Instead of having multiple relations between components of one
+subsystem and components of another subsystem, we create
+a component that is responsible for interfacing with client
+subsystems, delegating functionality implementation to
+sevice subsystem instances and possibly providing callbacks
+for async events returning values from services to consumers
+
+** Examples
+
+*** Java 
+
+On example bellow we have a class =SudokuViewModel= acting
+as a facade so that view classes instead of interacting directly
+with many diferent service classes, interact always with
+this viewModel class.
+
+#+begin_src java
+public class SudokuViewModel {
+
+	private final SudokuBoardGenerator generator;
+	private final SudokuService sudokuService;
+	private final SudokuImportService importService;
+	private final SudokuFileService fileService;
+
+    //...
+
+	public SudokuViewModel(
+		SudokuService sudokuService,
+		SudokuBoardGenerator sudokuBoardGenerator,
+		SudokuImportService sudokuImportService,
+		SudokuFileService fileService
+	) {
+		this.sudokuService = sudokuService;
+		this.generator = sudokuBoardGenerator;
+		this.importService = sudokuImportService;
+		this.fileService = fileService;
+
+		// ...
+	}
+// ....
+	public void onExit() {
+		shouldExit.setData(true);
+	}
+
+	public void onSave(File saveToFile) {
+		try {
+			this.fileService.saveGame(
+				saveToFile, this.getBoard()
+			);
+		} catch (IOException ex) {
+			ex.printStackTrace();
+		}
+	}
+
+	public void onImport(File importFile) {
+		List<CellModel> importCells =
+			importService.importGame(importFile);
+		onImport(importCells, "file");
+	}
+// ...
+#+end_src
+[[https://github.com/RedJocker/SudokuSwingBoot/blob/2240c967286df3ba535810c66bfd0d41f99fe86a/src/main/java/org/play/sudokuSwingBoot/gui/SudokuViewModel.java#L30-L53]]
+
+
+#+begin_src java
+  public class SudokuMenuBar extends JMenuBar{
+	  final SudokuViewModel sudokuViewModel;
+	  final JFileChooser fileChooser;
+
+	  public SudokuMenuBar(
+		  final SudokuViewModel sudokuViewModel,
+		  final JFileChooser fileChooser,
+		  final LookAndFeelMenu lookAndFeelMenu
+	  ) {
+
+		  this.sudokuViewModel = sudokuViewModel;
+		  this.fileChooser = fileChooser;
+
+		  final JMenu menu = new JMenu("File");
+		  menu.setMnemonic(KeyEvent.VK_F);
+		  menu.getAccessibleContext()
+			  .setAccessibleDescription("File Menu");
+		  this.add(menu);
+
+
+		  // ...
+
+		  final JMenuItem loadMenuItem =
+			  new JMenuItem("Load saved game", KeyEvent.VK_L);
+		  //...
+		  loadMenuItem.getAccessibleContext()
+			  .setAccessibleDescription("Load saved sudoku game");
+		  loadMenuItem.addActionListener(this::onLoad);
+		  menu.add(loadMenuItem);
+
+
+		  final JMenuItem saveMenuItem =
+			  new JMenuItem("Save game", KeyEvent.VK_S);
+		  //...
+		  saveMenuItem.getAccessibleContext()
+			  .setAccessibleDescription("Save a sudoku game");
+		  saveMenuItem.addActionListener(this::onSave);
+		  menu.add(saveMenuItem);
+
+		  final JMenuItem importMenuItem =
+			  new JMenuItem("Import game", KeyEvent.VK_I);
+		  //...
+		  importMenuItem.getAccessibleContext()
+			  .setAccessibleDescription("Import game from text file");
+		  importMenuItem.addActionListener(this::onImport);
+		  menu.add(importMenuItem);
+
+		  final JMenuItem exitMenuItem =
+			  new JMenuItem("Quit", KeyEvent.VK_Q);
+		  //...
+		  exitMenuItem.getAccessibleContext()
+			  .setAccessibleDescription("Quit Sudoku");
+		  exitMenuItem.addActionListener(this::onExit);
+		  menu.add(exitMenuItem);
+		  //...
+	  }
+	  //...
+
+	  private void onSave(ActionEvent e) {
+		  System.out.println("Save Clicked");
+		  int returnVal = fileChooser.showSaveDialog(this.getParent());
+		  if (returnVal == JFileChooser.APPROVE_OPTION) {
+			  File file = fileChooser.getSelectedFile();
+			  sudokuViewModel.onSave(file);
+		  }
+	  }
+
+	  private void onLoad(ActionEvent e) {
+		  System.out.println("Load Clicked");
+		  int returnVal = fileChooser.showOpenDialog(this.getParent());
+		  if (returnVal == JFileChooser.APPROVE_OPTION) {
+			  File file = fileChooser.getSelectedFile();
+			  sudokuViewModel.onLoadBoard(file);
+
+		  }
+	  }
+
+	  private void onExit(ActionEvent e) {
+		  System.out.println("Exit Clicked");
+		  int result = JOptionPane
+			  .showConfirmDialog(this.getParent(),
+				  "Do you really want to exit the game?",
+				  "Exit game",
+				  JOptionPane.YES_NO_OPTION);
+		  if (result == JFileChooser.APPROVE_OPTION)
+			  sudokuViewModel.onExit();
+	  }
+
+	  private void onImport(ActionEvent e) {
+		  System.out.println("Import Clicked");
+
+		  final JFileChooser importFileChooser = new JFileChooser();
+		  importFileChooser.setCurrentDirectory(new File("./"));
+
+		  int returnVal = importFileChooser.showOpenDialog(this.getParent());
+		  if (returnVal == JFileChooser.APPROVE_OPTION) {
+			  File importFile = importFileChooser.getSelectedFile();
+			  this.sudokuViewModel.onImport(importFile);
+		  }
+	  }
+	  //...
+  }
+#+end_src
+[[https://github.com/RedJocker/SudokuSwingBoot/blob/2240c967286df3ba535810c66bfd0d41f99fe86a/src/main/java/org/play/sudokuSwingBoot/gui/SudokuMenuBar.java#L24-L147]]
+
+#+begin_src java
+  public class SudokuView extends JFrame {
+
+	  private static int DEFAULT_WIDTH = 500;
+	  private static int DEFAULT_HEIGHT = 400;
+	  private final SudokuViewModel viewModel;
+	  //..
+		  public SudokuView(
+		  final SudokuViewModel viewModel,
+		  //...
+	  ) {
+		  this.viewModel = viewModel;
+		  //...
+		  SwingUtilities.invokeLater((Runnable) () -> {
+				  initSudokuView(
+					  borderLayout,
+					  sudokuTitle,
+					  args
+				  );
+		  });
+	  }
+
+	  private void initSudokuView(
+		  final BorderLayout borderLayout,
+		  final SudokuTitle sudokuTitle,
+		  final ApplicationArguments args
+	  ) {
+		  System.out.println("HELLO SUDOKU VIEW");
+		  System.out.println(
+			  Arrays.toString(args.getSourceArgs())
+		  );
+
+		  //...
+		  if (args.getSourceArgs().length != 0)
+			  viewModel.onImport(args);
+		  else
+			  this.viewModel.initBoard();
+		  this.viewModel.observeIsComplete(sudokuGrid::onComplete);
+		  this.viewModel.observeShouldExit(this::onExit);
+
+		  this.sudokuControl
+			  .setOnControlClick(this.viewModel::onControlClick);
+		  // ...
+		  this.setJMenuBar(this.sudokuMenuBar);
+		  this.setVisible(true);
+	  }
+	  // ... 
+	  private void onExit(Boolean shouldExit) {
+		  if (shouldExit == true) {
+			  this.dispose();
+		  }
+	  }
+	  // ...
+  }
+#+end_src
+
+https://github.com/RedJocker/SudokuSwingBoot/blob/2240c967286df3ba535810c66bfd0d41f99fe86a/src/main/java/org/play/sudokuSwingBoot/gui/SudokuView.java#L19-L130
