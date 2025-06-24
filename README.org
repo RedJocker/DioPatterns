@@ -8,5 +8,17 @@ Creational design patterns abstract the instantiation process.
 They help make a system independent of how its
 objects are created, composed, and represented.
 
+*** Index to some Creational Patterns
+
 - [[https://github.com/RedJocker/DioPatterns/blob/master/creational/singleton/README.org][Singleton]]
 
+** Structural Patterns
+
+*** Short Definition
+
+Structural patterns are concerned with how classes and objects are
+composed to form larger structures and how they create relations.
+
+*** Index to some Structural Patterns
+
+- [[https://github.com/RedJocker/DioPatterns/blob/master/structural/facade/README.org][Facade]]
