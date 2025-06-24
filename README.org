@@ -22,3 +22,14 @@ composed to form larger structures and how they create relations.
 *** Index to some Structural Patterns
 
 - [[https://github.com/RedJocker/DioPatterns/blob/master/structural/facade/README.org][Facade]]
+
+** Behavioural Patterns
+
+*** Short Definition
+
+Behavioral patterns are concerned with algorithms and the assignment of
+responsibilities between objects.
+
+*** Index to some Structural Patterns
+
+- [[https://github.com/RedJocker/DioPatterns/tree/master/behavioral/strategy][Strategy]]
